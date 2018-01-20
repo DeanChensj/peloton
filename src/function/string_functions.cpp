@@ -220,5 +220,52 @@ uint32_t StringFunctions::Length(
   return length;
 }
 
+char* StringFunctions::Upper(
+    UNUSED_ATTRIBUTE executor::ExecutorContext &ctx,
+    const char *str, uint32_t length) {
+  PL_ASSERT(str != nullptr);
+
+  auto *pool = ctx.GetPool();
+  auto *new_str = reinterpret_cast<char *>(pool->Allocate(length));
+
+  for (uint32_t i = 0; i < length; i++) {
+    if( str[i] >= 'a' && str[i] <= 'z') {
+      new_str[i] = str[i] - ('a' - 'A');
+    } else {
+      new_str[i] = str[i];
+    }
+  }
+
+  return StringFunctions::StrWithLen{new_str, length};
+}
+
+char* StringFunctions::Lower(
+    UNUSED_ATTRIBUTE executor::ExecutorContext &ctx,
+    const char *str, uint32_t length) {
+  PL_ASSERT(str != nullptr);
+
+  auto *pool = ctx.GetPool();
+  auto *new_str = reinterpret_cast<char *>(pool->Allocate(length));
+
+  for (uint32_t i = 0; i < length; i++) {
+    if( str[i] >= 'A' && str[i] <= 'Z') {
+      new_str[i] = str[i] + ('a' - 'A');
+    } else {
+      new_str[i] = str[i];
+    }
+  }
+
+  return StringFunctions::StrWithLen{new_str, length};
+}
+
+
+StringFunctions::StrWithLen StringFunctions::Concat(
+    UNUSED_ATTRIBUTE executor::ExecutorContext &ctx,
+    const char **concat_strs, uint32_t* str_length, uint32_t length) {
+
+
+  return StringFunctions::StrWithLen{new_str, length};
+}
+
 }  // namespace function
 }  // namespace peloton
