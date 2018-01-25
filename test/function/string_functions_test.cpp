@@ -349,5 +349,57 @@ TEST_F(StringFunctionsTests, CodegenSubstrTest) {
   EXPECT_EQ(nullptr, res.str);
 }
 
+TEST_F(StringFunctionsTests, UpperTest) {
+  const std::string message = "This is a string.";
+  const std::string expected = "THIS IS A STRING.";
+
+  std::vector<type::Value> args = {type::ValueFactory::GetVarcharValue(message)};
+  auto result = function::OldEngineStringFunctions::Upper(args);
+  EXPECT_FALSE(result.IsNull());
+  EXPECT_EQ(expected, result.ToString());
+
+  // Use NULL for every argument and make sure that it always returns NULL.
+  std::vector<type::Value> null_args = {
+      type::ValueFactory::GetNullValueByType(type::TypeId::VARCHAR)};
+  auto null_result = function::OldEngineStringFunctions::Upper(null_args);
+  EXPECT_TRUE(null_result.IsNull());
+}
+
+TEST_F(StringFunctionsTests, LowerTest) {
+  const std::string message = "THIS IS A STRING.";
+  const std::string expected = "this is a string.";
+
+  std::vector<type::Value> args = {type::ValueFactory::GetVarcharValue(message)};
+  auto result = function::OldEngineStringFunctions::Lower(args);
+  EXPECT_FALSE(result.IsNull());
+  EXPECT_EQ(expected, result.ToString());
+
+  // Use NULL for every argument and make sure that it always returns NULL.
+  std::vector<type::Value> null_args = {
+      type::ValueFactory::GetNullValueByType(type::TypeId::VARCHAR)};
+  auto null_result = function::OldEngineStringFunctions::Lower(null_args);
+  EXPECT_TRUE(null_result.IsNull());
+}
+
+TEST_F(StringFunctionsTests, ConcatTest) {
+  const std::string message1 = "apple";
+  const std::string message2 = "pen";
+  const std::string expected = "applepen";
+
+  std::vector<type::Value> args = {type::ValueFactory::GetVarcharValue(message1),
+                                   type::ValueFactory::GetVarcharValue(message2)};
+  auto result = function::OldEngineStringFunctions::Concat(args);
+  EXPECT_FALSE(result.IsNull());
+  EXPECT_EQ(expected, result.ToString());
+
+  // Use NULL for every argument and make sure that it always returns NULL.
+  std::vector<type::Value> null_args = {
+      type::ValueFactory::GetNullValueByType(type::TypeId::VARCHAR),
+      type::ValueFactory::GetNullValueByType(type::TypeId::VARCHAR)};
+
+  auto null_result = function::OldEngineStringFunctions::Concat(null_args);
+  EXPECT_TRUE(null_result.IsNull());
+}
+
 }  // namespace test
 }  // namespace peloton

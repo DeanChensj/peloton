@@ -1042,15 +1042,13 @@ void Catalog::InitializeFunctions() {
           "upper", {type::TypeId::VARCHAR}, type::TypeId::VARCHAR,
           internal_lang, "Upper",
           function::BuiltInFuncType{OperatorId::Upper,
-                                    NULL},
-                                    // function::OldEngineStringFunctions::Upper},
+                                    function::OldEngineStringFunctions::Upper},
           txn);
       AddBuiltinFunction(
           "lower", {type::TypeId::VARCHAR}, type::TypeId::VARCHAR,
           internal_lang, "Lower",
           function::BuiltInFuncType{OperatorId::Lower,
-                                    NULL},
-                                    // function::OldEngineStringFunctions::Lower},
+                                    function::OldEngineStringFunctions::Lower},
           txn);
 
       /**
