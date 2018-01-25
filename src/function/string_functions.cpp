@@ -220,14 +220,13 @@ uint32_t StringFunctions::Length(
   return length;
 }
 
-char* StringFunctions::Upper(
-    executor::ExecutorContext &ctx, const char *str, uint32_t length) {
-
+char *StringFunctions::Upper(executor::ExecutorContext &ctx, const char *str,
+                             uint32_t length) {
   auto *pool = ctx.GetPool();
   auto *new_str = reinterpret_cast<char *>(pool->Allocate(length));
 
   for (uint32_t i = 0; i < length; i++) {
-    if( str[i] >= 'a' && str[i] <= 'z') {
+    if (str[i] >= 'a' && str[i] <= 'z') {
       new_str[i] = str[i] - ('a' - 'A');
     } else {
       new_str[i] = str[i];
@@ -237,14 +236,13 @@ char* StringFunctions::Upper(
   return new_str;
 }
 
-char* StringFunctions::Lower(
-    executor::ExecutorContext &ctx, const char *str, uint32_t length) {
-
+char *StringFunctions::Lower(executor::ExecutorContext &ctx, const char *str,
+                             uint32_t length) {
   auto *pool = ctx.GetPool();
   auto *new_str = reinterpret_cast<char *>(pool->Allocate(length));
 
   for (uint32_t i = 0; i < length; i++) {
-    if( str[i] >= 'A' && str[i] <= 'Z') {
+    if (str[i] >= 'A' && str[i] <= 'Z') {
       new_str[i] = str[i] + ('a' - 'A');
     } else {
       new_str[i] = str[i];
@@ -255,9 +253,8 @@ char* StringFunctions::Lower(
 }
 
 StringFunctions::StrWithLen StringFunctions::Concat(
-    executor::ExecutorContext &ctx,
-    const char **concat_strs, uint32_t* str_length, uint32_t length) {
-
+    executor::ExecutorContext &ctx, const char **concat_strs,
+    uint32_t *str_length, uint32_t length) {
   // Determine the number of bytes we need
   uint32_t total_len = 1;
   for (uint32_t i = 0; i < length; i++) {

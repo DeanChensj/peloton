@@ -165,7 +165,7 @@ struct Length : public TypeSystem::UnaryOperatorHandleNull {
 };
 
 // Upper
-struct Upper: public TypeSystem::UnaryOperatorHandleNull {
+struct Upper : public TypeSystem::UnaryOperatorHandleNull {
   bool SupportsType(const Type &type) const override {
     return type.GetSqlType() == Varchar::Instance();
   }
@@ -186,7 +186,7 @@ struct Upper: public TypeSystem::UnaryOperatorHandleNull {
 };
 
 // Lower
-struct Lower: public TypeSystem::UnaryOperatorHandleNull {
+struct Lower : public TypeSystem::UnaryOperatorHandleNull {
   bool SupportsType(const Type &type) const override {
     return type.GetSqlType() == Varchar::Instance();
   }

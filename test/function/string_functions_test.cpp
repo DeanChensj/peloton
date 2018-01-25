@@ -353,7 +353,8 @@ TEST_F(StringFunctionsTests, UpperTest) {
   const std::string message = "This is a string.";
   const std::string expected = "THIS IS A STRING.";
 
-  std::vector<type::Value> args = {type::ValueFactory::GetVarcharValue(message)};
+  std::vector<type::Value> args = {
+      type::ValueFactory::GetVarcharValue(message)};
   auto result = function::OldEngineStringFunctions::Upper(args);
   EXPECT_FALSE(result.IsNull());
   EXPECT_EQ(expected, result.ToString());
@@ -369,7 +370,8 @@ TEST_F(StringFunctionsTests, LowerTest) {
   const std::string message = "THIS IS A STRING.";
   const std::string expected = "this is a string.";
 
-  std::vector<type::Value> args = {type::ValueFactory::GetVarcharValue(message)};
+  std::vector<type::Value> args = {
+      type::ValueFactory::GetVarcharValue(message)};
   auto result = function::OldEngineStringFunctions::Lower(args);
   EXPECT_FALSE(result.IsNull());
   EXPECT_EQ(expected, result.ToString());
@@ -386,8 +388,9 @@ TEST_F(StringFunctionsTests, ConcatTest) {
   const std::string message2 = "pen";
   const std::string expected = "applepen";
 
-  std::vector<type::Value> args = {type::ValueFactory::GetVarcharValue(message1),
-                                   type::ValueFactory::GetVarcharValue(message2)};
+  std::vector<type::Value> args = {
+      type::ValueFactory::GetVarcharValue(message1),
+      type::ValueFactory::GetVarcharValue(message2)};
   auto result = function::OldEngineStringFunctions::Concat(args);
   EXPECT_FALSE(result.IsNull());
   EXPECT_EQ(expected, result.ToString());

@@ -235,7 +235,7 @@ type::Value OldEngineStringFunctions::Upper(
 
   executor::ExecutorContext ctx{nullptr};
   auto ret = StringFunctions::Upper(ctx, args[0].GetAs<const char *>(),
-                                        args[0].GetLength());
+                                    args[0].GetLength());
   std::string str(ret, args[0].GetLength() - 1);
   return type::ValueFactory::GetVarcharValue(str);
 }
