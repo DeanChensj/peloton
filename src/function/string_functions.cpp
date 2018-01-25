@@ -254,11 +254,15 @@ char *StringFunctions::Lower(executor::ExecutorContext &ctx, const char *str,
 
 StringFunctions::StrWithLen StringFunctions::Concat(
     executor::ExecutorContext &ctx, const char **concat_strs,
-    uint32_t *str_length, uint32_t length) {
+    const uint32_t *str_length, uint32_t length) {
   // Determine the number of bytes we need
   uint32_t total_len = 1;
   for (uint32_t i = 0; i < length; i++) {
     total_len += str_length[i] ? str_length[i] - 1 : 0;
+  }
+
+  if (total_len == 1) {
+    return StringFunctions::StrWithLen{nullptr, 0};
   }
 
   // Allocate new memory

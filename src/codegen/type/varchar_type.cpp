@@ -539,11 +539,8 @@ struct Substr : public TypeSystem::NaryOperator {
     // Setup function arguments
     llvm::Value *executor_ctx = ctx.executor_context;
     std::vector<llvm::Value *> args = {
-        executor_ctx,
-        input_args[0].GetValue(),
-        input_args[0].GetLength(),
-        input_args[1].GetValue(),
-        input_args[2].GetValue(),
+        executor_ctx, input_args[0].GetValue(), input_args[0].GetLength(),
+        input_args[1].GetValue(), input_args[2].GetValue(),
     };
 
     // Call

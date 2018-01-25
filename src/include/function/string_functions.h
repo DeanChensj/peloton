@@ -76,16 +76,17 @@ class StringFunctions {
                          uint32_t length);
 
   // Return the upper version of the given string
-  static char* Upper(executor::ExecutorContext &ctx, const char *str,
-                         uint32_t length);
+  static char *Upper(executor::ExecutorContext &ctx, const char *str,
+                     uint32_t length);
 
   // Return the lower version of the given string
-  static char* Lower(executor::ExecutorContext &ctx, const char *str,
-                          uint32_t length);
+  static char *Lower(executor::ExecutorContext &ctx, const char *str,
+                     uint32_t length);
 
   // Concatenate an array of strings to one string
-  static StrWithLen Concat(executor::ExecutorContext &ctx, const char **concat_strs,
-                          uint32_t* str_length, uint32_t length);
+  static StrWithLen Concat(executor::ExecutorContext &ctx,
+                           const char **concat_strs, const uint32_t *str_length,
+                           uint32_t length);
 };
 
 }  // namespace function
