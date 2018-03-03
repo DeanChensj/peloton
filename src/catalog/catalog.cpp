@@ -19,6 +19,7 @@
 #include "catalog/index_metrics_catalog.h"
 #include "catalog/language_catalog.h"
 #include "catalog/proc_catalog.h"
+#include "catalog/query_history_catalog.h"
 #include "catalog/query_metrics_catalog.h"
 #include "catalog/settings_catalog.h"
 #include "catalog/table_catalog.h"
@@ -28,8 +29,10 @@
 #include "function/date_functions.h"
 #include "function/decimal_functions.h"
 #include "function/old_engine_string_functions.h"
+#include "function/string_functions.h"
 #include "function/timestamp_functions.h"
 #include "index/index_factory.h"
+#include "settings/settings_manager.h"
 #include "storage/storage_manager.h"
 #include "storage/table_factory.h"
 #include "type/ephemeral_pool.h"
@@ -146,11 +149,15 @@ void Catalog::Bootstrap() {
   DatabaseMetricsCatalog::GetInstance(txn);
   TableMetricsCatalog::GetInstance(txn);
   IndexMetricsCatalog::GetInstance(txn);
-  QueryMetricsCatalog::GetInstance(txn);
+  QueryMetricsCatalog::GetInstance(txn);  
   SettingsCatalog::GetInstance(txn);
   TriggerCatalog::GetInstance(txn);
   LanguageCatalog::GetInstance(txn);
   ProcCatalog::GetInstance(txn);
+  
+  if (settings::SettingsManager::GetBool(settings::SettingId::brain)) {
+    QueryHistoryCatalog::GetInstance(txn);
+  }
 
   txn_manager.CommitTransaction(txn);
 
@@ -265,7 +272,6 @@ ResultType Catalog::CreateTable(const std::string &database_name,
         table_oid, column.GetName(), column_id, column.GetOffset(),
         column.GetType(), column.IsInlined(), column.GetConstraints(),
         pool_.get(), txn);
-    column_id++;
 
     // Create index on unique single column
     if (column.IsUnique()) {
@@ -276,6 +282,7 @@ ResultType Catalog::CreateTable(const std::string &database_name,
       LOG_DEBUG("Added a UNIQUE index on %s in %s.", col_name.c_str(),
                 table_name.c_str());
     }
+    column_id++;
   }
   CreatePrimaryIndex(database_object->GetDatabaseOid(), table_oid, txn);
   return ResultType::SUCCESS;
@@ -604,6 +611,22 @@ ResultType Catalog::DropIndex(oid_t index_oid,
                   index_oid);
 
   return ResultType::SUCCESS;
+}
+
+ResultType Catalog::DropIndex(const std::string &index_name,
+                              concurrency::TransactionContext *txn) {
+    if(txn == nullptr) {
+        throw CatalogException("Do not have transaction to drop index " +
+                               index_name);
+    }
+    auto index_object = catalog::IndexCatalog::GetInstance()->GetIndexObject(
+                index_name, txn);
+    if(index_object == nullptr) {
+        throw CatalogException("Index name " + index_name + " cannot be found");
+    }
+    ResultType result = DropIndex(index_object->GetIndexOid(), txn);
+
+    return result;
 }
 
 //===--------------------------------------------------------------------===//
@@ -952,6 +975,25 @@ void Catalog::InitializeFunctions() {
        * string functions
        */
       AddBuiltinFunction(
+          "upper", {type::TypeId::VARCHAR}, type::TypeId::VARCHAR,
+          internal_lang, "Upper",
+          function::BuiltInFuncType{OperatorId::Upper,
+                                    function::StringFunctions::__Upper},
+          txn);
+      AddBuiltinFunction(
+          "lower", {type::TypeId::VARCHAR}, type::TypeId::VARCHAR,
+          internal_lang, "Lower",
+          function::BuiltInFuncType{OperatorId::Lower,
+                                    function::StringFunctions::__Lower},
+          txn);
+      AddBuiltinFunction(
+          "concat", {type::TypeId::VARCHAR, type::TypeId::VARCHAR},
+          type::TypeId::VARCHAR, internal_lang, "Concat",
+          function::BuiltInFuncType{OperatorId::Concat,
+                                    function::StringFunctions::__Concat},
+          txn);
+
+      AddBuiltinFunction(
           "ascii", {type::TypeId::VARCHAR}, type::TypeId::INTEGER,
           internal_lang, "Ascii",
           function::BuiltInFuncType{OperatorId::Ascii,
@@ -962,12 +1004,6 @@ void Catalog::InitializeFunctions() {
           "Chr",
           function::BuiltInFuncType{OperatorId::Chr,
                                     function::OldEngineStringFunctions::Chr},
-          txn);
-      AddBuiltinFunction(
-          "concat", {type::TypeId::VARCHAR, type::TypeId::VARCHAR},
-          type::TypeId::VARCHAR, internal_lang, "Concat",
-          function::BuiltInFuncType{OperatorId::Concat,
-                                    function::OldEngineStringFunctions::Concat},
           txn);
       AddBuiltinFunction(
           "substr",

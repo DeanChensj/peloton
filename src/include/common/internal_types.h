@@ -466,7 +466,8 @@ enum class IndexType {
   INVALID = INVALID_TYPE_ID,  // invalid index type
   BWTREE = 1,                 // bwtree
   HASH = 2,                   // hash
-  SKIPLIST = 3                // skiplist
+  SKIPLIST = 3,               // skiplist
+  ART = 4,                    // ART
 };
 std::string IndexTypeToString(IndexType type);
 IndexType StringToIndexType(const std::string &str);
@@ -1081,7 +1082,6 @@ enum class OperatorId : uint32_t {
   Now,
   Upper,
   Lower,
-
   // Add more operators here, before the last "Invalid" entry
   Invalid
 };
@@ -1163,7 +1163,6 @@ extern size_t CONNECTION_THREAD_COUNT;
 extern size_t LOGGING_THREAD_COUNT;
 extern size_t GC_THREAD_COUNT;
 extern size_t EPOCH_THREAD_COUNT;
-extern size_t MAX_CONCURRENCY;
 
 //===--------------------------------------------------------------------===//
 // TupleMetadata

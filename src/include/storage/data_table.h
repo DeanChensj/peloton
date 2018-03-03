@@ -21,7 +21,6 @@
 #include "common/item_pointer.h"
 #include "common/platform.h"
 #include "common/container/lock_free_array.h"
-#include "index/index.h"
 #include "storage/abstract_table.h"
 #include "storage/indirection_array.h"
 #include "trigger/trigger.h"
@@ -34,25 +33,25 @@ extern std::vector<peloton::oid_t> sdbench_column_ids;
 
 namespace peloton {
 
-namespace brain {
+namespace tuning {
 class Sample;
-}
+}  // namespace indextuner
 
 namespace catalog {
 class ForeignKey;
-}
+}  // namespace catalog
 
 namespace index {
 class Index;
-}
+}  // namespace index
 
 namespace logging {
 class LogManager;
-}
+}  // namespace logging
 
 namespace concurrency {
 class TransactionContext;
-}
+}  // namespace concurrency
 
 namespace storage {
 
@@ -118,14 +117,16 @@ class DataTable : public AbstractTable {
   // index_entry_ptr.
   ItemPointer InsertTuple(const Tuple *tuple,
                           concurrency::TransactionContext *transaction,
-                          ItemPointer **index_entry_ptr = nullptr);
+                          ItemPointer **index_entry_ptr = nullptr,
+                          bool check_fk = true);
   // designed for tables without primary key. e.g., output table used by
   // aggregate_executor.
   ItemPointer InsertTuple(const Tuple *tuple);
 
   // Insert tuple with ItemPointer provided explicitly
   bool InsertTuple(const AbstractTuple *tuple, ItemPointer location,
-      concurrency::TransactionContext *transaction, ItemPointer **index_entry_ptr);
+      concurrency::TransactionContext *transaction, ItemPointer **index_entry_ptr,
+      bool check_fk = true);
 
   //===--------------------------------------------------------------------===//
   // TILE GROUP
@@ -193,6 +194,12 @@ class DataTable : public AbstractTable {
   // FOREIGN KEYS
   //===--------------------------------------------------------------------===//
 
+  bool CheckForeignKeySrcAndCascade(storage::Tuple *prev_tuple, 
+                                    storage::Tuple *new_tuple,
+                                    concurrency::TransactionContext *transaction,
+                                    executor::ExecutorContext *context,
+                                    bool is_update);
+
   void AddForeignKey(catalog::ForeignKey *key);
 
   catalog::ForeignKey *GetForeignKey(const oid_t &key_offset) const;
@@ -201,9 +208,11 @@ class DataTable : public AbstractTable {
 
   size_t GetForeignKeyCount() const;
 
-  void RegisterForeignKeySource(const std::string &source_table_name);
+  void RegisterForeignKeySource(catalog::ForeignKey *key);
 
-  void RemoveForeignKeySource(const std::string &source_table_name);
+  size_t GetForeignKeySrcCount() const;
+
+  catalog::ForeignKey *GetForeignKeySrc(const size_t) const;
 
   //===--------------------------------------------------------------------===//
   // TRANSFORMERS
@@ -232,9 +241,9 @@ class DataTable : public AbstractTable {
   // LAYOUT TUNER
   //===--------------------------------------------------------------------===//
 
-  void RecordLayoutSample(const brain::Sample &sample);
+  void RecordLayoutSample(const tuning::Sample &sample);
 
-  std::vector<brain::Sample> GetLayoutSamples();
+  std::vector<tuning::Sample> GetLayoutSamples();
 
   void ClearLayoutSamples();
 
@@ -246,9 +255,9 @@ class DataTable : public AbstractTable {
   // INDEX TUNER
   //===--------------------------------------------------------------------===//
 
-  void RecordIndexSample(const brain::Sample &sample);
+  void RecordIndexSample(const tuning::Sample &sample);
 
-  std::vector<brain::Sample> GetIndexSamples();
+  std::vector<tuning::Sample> GetIndexSamples();
 
   void ClearIndexSamples();
 
@@ -333,7 +342,8 @@ class DataTable : public AbstractTable {
                                 ItemPointer *index_entry_ptr);
 
   // check the foreign key constraints
-  bool CheckForeignKeyConstraints(const AbstractTuple *tuple);
+  bool CheckForeignKeyConstraints(const AbstractTuple *tuple,
+                                  concurrency::TransactionContext *transaction);
 
  public:
   static size_t default_active_tilegroup_count_;
@@ -379,8 +389,10 @@ class DataTable : public AbstractTable {
   // CONSTRAINTS
   // fk constraints for which this table is the source
   std::vector<catalog::ForeignKey *> foreign_keys_;
-  // names of tables for which this table's PK is the foreign key sink
-  std::vector<std::string> foreign_key_sources_;
+  // fk constraints for which this table is the sink
+  // The complete information is stored so no need to lookup the table
+  // everytime there is a constraint check
+  std::vector<catalog::ForeignKey *> foreign_key_sources_;
 
   // has a primary key ?
   std::atomic<bool> has_primary_key_ = ATOMIC_VAR_INIT(false);
@@ -406,13 +418,13 @@ class DataTable : public AbstractTable {
   column_map_type default_partition_;
 
   // samples for layout tuning
-  std::vector<brain::Sample> layout_samples_;
+  std::vector<tuning::Sample> layout_samples_;
 
   // layout samples mutex
   std::mutex layout_samples_mutex_;
 
   // samples for layout tuning
-  std::vector<brain::Sample> index_samples_;
+  std::vector<tuning::Sample> index_samples_;
 
   // index samples mutex
   std::mutex index_samples_mutex_;

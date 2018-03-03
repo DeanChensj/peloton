@@ -6,7 +6,7 @@
 //
 // Identification: src/network/postgres_protocol_handler.cpp
 //
-// Copyright (c) 2015-17, Carnegie Mellon University Database Group
+// Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
@@ -30,7 +30,6 @@
 #include "traffic_cop/traffic_cop.h"
 #include "type/value.h"
 #include "type/value_factory.h"
-#include "network/marshal.h"
 
 #define SSL_MESSAGE_VERNO 80877103
 #define PROTO_MAJOR_VERSION(x) (x >> 16)
@@ -262,11 +261,11 @@ ProcessResult PostgresProtocolHandler::ExecQueryMessage(
       std::shared_ptr<Statement> statement(nullptr);
       auto prep_stmt = dynamic_cast<parser::PrepareStatement *>(sql_stmt.get());
       std::string stmt_name = prep_stmt->name;
-      statement = traffic_cop_->PrepareStatement(
-          stmt_name, query, std::move(prep_stmt->query), error_message);
+      statement = traffic_cop_->PrepareStatement(stmt_name, query,
+                                                 std::move(prep_stmt->query));
       if (statement.get() == nullptr) {
-        SendErrorResponse(
-            {{NetworkMessageType::HUMAN_READABLE_ERROR, error_message}});
+        SendErrorResponse({{NetworkMessageType::HUMAN_READABLE_ERROR,
+                            traffic_cop_->GetErrorMessage()}});
         SendReadyForQuery(NetworkTransactionStateType::IDLE);
         return ProcessResult::COMPLETE;
       }
@@ -295,9 +294,9 @@ ProcessResult PostgresProtocolHandler::ExecQueryMessage(
       }
       // Did not find statement with same name
       else {
-        traffic_cop_->SetErrorMessage("The prepared statement does not exist");
-        SendErrorResponse({{NetworkMessageType::HUMAN_READABLE_ERROR,
-                            traffic_cop_->GetErrorMessage()}});
+        std::string error_message = "The prepared statement does not exist";
+        SendErrorResponse(
+            {{NetworkMessageType::HUMAN_READABLE_ERROR, error_message}});
         SendReadyForQuery(NetworkTransactionStateType::IDLE);
         return ProcessResult::COMPLETE;
       }
@@ -305,10 +304,8 @@ ProcessResult PostgresProtocolHandler::ExecQueryMessage(
           traffic_cop_->GetStatement()->GetTupleDescriptor().size(), 0);
       result_format_ = result_format;
 
-      if (!traffic_cop_->BindParamsForCachePlan(exec_stmt->parameters,
-                                                error_message)) {
+      if (!traffic_cop_->BindParamsForCachePlan(exec_stmt->parameters)) {
         traffic_cop_->ProcessInvalidStatement();
-        traffic_cop_->SetErrorMessage(error_message);
         SendErrorResponse({{NetworkMessageType::HUMAN_READABLE_ERROR,
                             traffic_cop_->GetErrorMessage()}});
         SendReadyForQuery(NetworkTransactionStateType::IDLE);
@@ -318,8 +315,7 @@ ProcessResult PostgresProtocolHandler::ExecQueryMessage(
       bool unnamed = false;
       auto status = traffic_cop_->ExecuteStatement(
           traffic_cop_->GetStatement(), traffic_cop_->GetParamVal(), unnamed,
-          nullptr, result_format_, traffic_cop_->GetResult(),
-          traffic_cop_->GetErrorMessage(), thread_id);
+          nullptr, result_format_, traffic_cop_->GetResult(), thread_id);
       if (traffic_cop_->GetQueuing()) {
         return ProcessResult::PROCESSING;
       }
@@ -332,10 +328,10 @@ ProcessResult PostgresProtocolHandler::ExecQueryMessage(
           new parser::SQLStatementList());
       unnamed_sql_stmt_list->PassInStatement(std::move(sql_stmt));
       traffic_cop_->SetStatement(traffic_cop_->PrepareStatement(
-          stmt_name, query, std::move(unnamed_sql_stmt_list), error_message));
+          stmt_name, query, std::move(unnamed_sql_stmt_list)));
       if (traffic_cop_->GetStatement().get() == nullptr) {
-        SendErrorResponse(
-            {{NetworkMessageType::HUMAN_READABLE_ERROR, error_message}});
+        SendErrorResponse({{NetworkMessageType::HUMAN_READABLE_ERROR,
+                            traffic_cop_->GetErrorMessage()}});
         SendReadyForQuery(NetworkTransactionStateType::IDLE);
         return ProcessResult::COMPLETE;
       }
@@ -345,8 +341,7 @@ ProcessResult PostgresProtocolHandler::ExecQueryMessage(
           traffic_cop_->GetStatement()->GetTupleDescriptor().size(), 0);
       auto status = traffic_cop_->ExecuteStatement(
           traffic_cop_->GetStatement(), traffic_cop_->GetParamVal(), unnamed,
-          nullptr, result_format_, traffic_cop_->GetResult(),
-          traffic_cop_->GetErrorMessage(), thread_id);
+          nullptr, result_format_, traffic_cop_->GetResult(), thread_id);
       if (traffic_cop_->GetQueuing()) {
         return ProcessResult::PROCESSING;
       }
@@ -366,11 +361,11 @@ void PostgresProtocolHandler::ExecQueryMessageGetResult(ResultType status) {
     SendReadyForQuery(NetworkTransactionStateType::IDLE);
     return;
   } else if (status == ResultType::TO_ABORT) {
-    traffic_cop_->SetErrorMessage(
+    std::string error_message =
         "current transaction is aborted, commands ignored until end of "
-        "transaction block");
-    SendErrorResponse({{NetworkMessageType::HUMAN_READABLE_ERROR,
-                        traffic_cop_->GetErrorMessage()}});
+        "transaction block";
+    SendErrorResponse(
+        {{NetworkMessageType::HUMAN_READABLE_ERROR, error_message}});
     SendReadyForQuery(NetworkTransactionStateType::IDLE);
     return;
   }
@@ -391,7 +386,7 @@ void PostgresProtocolHandler::ExecQueryMessageGetResult(ResultType status) {
  * exec_parse_message - handle PARSE message
  */
 void PostgresProtocolHandler::ExecParseMessage(InputPacket *pkt) {
-  std::string error_message, statement_name, query, query_type_string;
+  std::string statement_name, query, query_type_string;
   GetStringToken(pkt, statement_name);
   GetStringToken(pkt, query);
 
@@ -414,15 +409,17 @@ void PostgresProtocolHandler::ExecParseMessage(InputPacket *pkt) {
     return;
   }
 
-  // If the query is either empty or redundant commands, or not supported yet,
+  // If the query is not supported yet,
   // we will skip the rest commands (B,E,..) for this query
-  bool skip = (sql_stmt_list.get() == nullptr ||
-               sql_stmt_list->GetNumStatements() == 0);
-  if (!skip) {
+  // For empty query, we still want to get it constructed
+  // TODO (Tianyi) Consider handle more statement
+  bool empty = (sql_stmt_list.get() == nullptr ||
+                sql_stmt_list->GetNumStatements() == 0);
+  if (!empty) {
     parser::SQLStatement *sql_stmt = sql_stmt_list->GetStatement(0);
     query_type = StatementTypeToQueryType(sql_stmt->GetType(), sql_stmt);
   }
-  skip = skip || !HardcodedExecuteFilter(query_type);
+  bool skip = !HardcodedExecuteFilter(query_type);
   if (skip) {
     skipped_stmt_ = true;
     skipped_query_string_ = query;
@@ -436,13 +433,13 @@ void PostgresProtocolHandler::ExecParseMessage(InputPacket *pkt) {
   // Prepare statement
   std::shared_ptr<Statement> statement(nullptr);
 
-  statement = traffic_cop_->PrepareStatement(
-      statement_name, query, std::move(sql_stmt_list), error_message);
+  statement = traffic_cop_->PrepareStatement(statement_name, query,
+                                             std::move(sql_stmt_list));
   if (statement.get() == nullptr) {
     traffic_cop_->ProcessInvalidStatement();
     skipped_stmt_ = true;
-    SendErrorResponse(
-        {{NetworkMessageType::HUMAN_READABLE_ERROR, error_message}});
+    SendErrorResponse({{NetworkMessageType::HUMAN_READABLE_ERROR,
+                        traffic_cop_->GetErrorMessage()}});
     return;
   }
   LOG_TRACE("PrepareStatement[%s] => %s", statement_name.c_str(),
@@ -528,6 +525,20 @@ void PostgresProtocolHandler::ExecBindMessage(InputPacket *pkt) {
     LOG_ERROR("%s", error_message.c_str());
     SendErrorResponse(
         {{NetworkMessageType::HUMAN_READABLE_ERROR, error_message}});
+    return;
+  }
+
+  // Empty query
+  if (statement->GetQueryType() == QueryType::QUERY_INVALID) {
+    std::unique_ptr<OutputPacket> response(new OutputPacket());
+    // Send Bind complete response
+    response->msg_type = NetworkMessageType::BIND_COMPLETE;
+    responses.push_back(std::move(response));
+    // TODO(Tianyi) This is a hack to respond correct describe message
+    // as well as execute message
+    skipped_stmt_ = true;
+    skipped_query_string_ = "";
+    return;
   }
 
   // UNNAMED STATEMENT
@@ -697,9 +708,9 @@ size_t PostgresProtocolHandler::ReadParamValue(
         PL_ASSERT(param_values[param_idx].GetTypeId() != type::TypeId::INVALID);
       } else {
         // BINARY mode
-        PostgresValueType pg_value_type = static_cast<PostgresValueType>(param_types[param_idx]);
-        LOG_TRACE("Postgres Protocol Conversion [param_idx=%d]",
-                  param_idx);
+        PostgresValueType pg_value_type =
+            static_cast<PostgresValueType>(param_types[param_idx]);
+        LOG_TRACE("Postgres Protocol Conversion [param_idx=%d]", param_idx);
         switch (pg_value_type) {
           case PostgresValueType::TINYINT: {
             int8_t int_val = 0;
@@ -767,9 +778,10 @@ size_t PostgresProtocolHandler::ReadParamValue(
             break;
           }
           default: {
-            LOG_ERROR("Binary Postgres protocol does not support data type '%s' [%d]",
-                      PostgresValueTypeToString(pg_value_type).c_str(),
-                      param_types[param_idx]);
+            LOG_ERROR(
+                "Binary Postgres protocol does not support data type '%s' [%d]",
+                PostgresValueTypeToString(pg_value_type).c_str(),
+                param_types[param_idx]);
             break;
           }
         }
@@ -870,8 +882,7 @@ ProcessResult PostgresProtocolHandler::ExecExecuteMessage(
 
   auto status = traffic_cop_->ExecuteStatement(
       traffic_cop_->GetStatement(), traffic_cop_->GetParamVal(), unnamed,
-      param_stat, result_format_, traffic_cop_->GetResult(),
-      traffic_cop_->GetErrorMessage(), thread_id);
+      param_stat, result_format_, traffic_cop_->GetResult(), thread_id);
   if (traffic_cop_->GetQueuing()) {
     return ProcessResult::PROCESSING;
   }
@@ -1041,7 +1052,9 @@ bool PostgresProtocolHandler::ReadPacket(Buffer &rbuf, InputPacket &rpkt) {
  * process_startup_packet - Processes the startup packet
  *  (after the size field of the header).
  */
-bool PostgresProtocolHandler::ProcessInitialPacket(InputPacket *pkt, Client client, bool ssl_able, bool& ssl_handshake, bool& finish_startup_packet) {
+bool PostgresProtocolHandler::ProcessInitialPackets(
+    InputPacket *pkt, Client client, bool ssl_able, bool &ssl_handshake,
+    bool &finish_startup_packet) {
   std::string token, value;
   std::unique_ptr<OutputPacket> response(new OutputPacket);
 
@@ -1050,25 +1063,29 @@ bool PostgresProtocolHandler::ProcessInitialPacket(InputPacket *pkt, Client clie
 
   // TODO(Yuchen): consider more about return value
   if (proto_version == SSL_MESSAGE_VERNO) {
-    LOG_TRACE("process SSL MESSAGE");
+    LOG_DEBUG("process SSL MESSAGE");
     ProcessSSLRequestPacket(ssl_able, ssl_handshake);
     return true;
-  }
-  else {
-    LOG_TRACE("process startup packet");
-    return ProcessStartupPacket(pkt, proto_version, client, finish_startup_packet);
+  } else {
+    LOG_DEBUG("process startup packet");
+    return ProcessStartupPacket(pkt, proto_version, client,
+                                finish_startup_packet);
   }
 }
 
-void PostgresProtocolHandler::ProcessSSLRequestPacket(bool ssl_able, bool& ssl_handshake) {
+void PostgresProtocolHandler::ProcessSSLRequestPacket(bool ssl_able,
+                                                      bool &ssl_handshake) {
   std::unique_ptr<OutputPacket> response(new OutputPacket());
   ssl_handshake = ssl_able;
-  response->msg_type = ssl_able ? NetworkMessageType::SSL_YES : NetworkMessageType::SSL_NO;
+  response->msg_type =
+      ssl_able ? NetworkMessageType::SSL_YES : NetworkMessageType::SSL_NO;
   responses.push_back(std::move(response));
   SetFlushFlag(true);
 }
 
-bool PostgresProtocolHandler::ProcessStartupPacket(InputPacket* pkt, int32_t proto_version, Client client, bool& finished_startup_packet) {
+bool PostgresProtocolHandler::ProcessStartupPacket(
+    InputPacket *pkt, int32_t proto_version, Client client,
+    bool &finished_startup_packet) {
   std::string token, value;
 
   // Only protocol version 3 is supported
@@ -1086,17 +1103,16 @@ bool PostgresProtocolHandler::ProcessStartupPacket(InputPacket* pkt, int32_t pro
       // loop end?
       if (pkt->ptr >= pkt->len) break;
       GetStringToken(pkt, client.dbname);
+      traffic_cop_->SetDefaultDatabaseName(client.dbname);
     } else if (token.compare(("user")) == 0) {
       // loop end?
       if (pkt->ptr >= pkt->len) break;
       GetStringToken(pkt, client.user);
-    }
-    else {
+    } else {
       if (pkt->ptr >= pkt->len) break;
       GetStringToken(pkt, value);
       client.cmdline_options[token] = value;
     }
-
   }
   finished_startup_packet = true;
 
@@ -1104,6 +1120,7 @@ bool PostgresProtocolHandler::ProcessStartupPacket(InputPacket* pkt, int32_t pro
   // TODO(Yuchen): Peloton does not do any kind of trust authentication now.
   // For example, no password authentication.
   SendInitialResponse();
+  LOG_DEBUG("Initial done");
 
   return true;
 }
@@ -1151,32 +1168,32 @@ ProcessResult PostgresProtocolHandler::ProcessPacket(InputPacket *pkt,
       return ExecQueryMessage(pkt, thread_id);
     }
     case NetworkMessageType::PARSE_COMMAND: {
-      LOG_DEBUG("PARSE_COMMAND");
+      LOG_TRACE("PARSE_COMMAND");
       ExecParseMessage(pkt);
     } break;
     case NetworkMessageType::BIND_COMMAND: {
-      LOG_DEBUG("BIND_COMMAND");
+      LOG_TRACE("BIND_COMMAND");
       ExecBindMessage(pkt);
     } break;
     case NetworkMessageType::DESCRIBE_COMMAND: {
-      LOG_DEBUG("DESCRIBE_COMMAND");
+      LOG_TRACE("DESCRIBE_COMMAND");
       return ExecDescribeMessage(pkt);
     }
     case NetworkMessageType::EXECUTE_COMMAND: {
-      LOG_DEBUG("EXECUTE_COMMAND");
+      LOG_TRACE("EXECUTE_COMMAND");
       return ExecExecuteMessage(pkt, thread_id);
     }
     case NetworkMessageType::SYNC_COMMAND: {
-      LOG_DEBUG("SYNC_COMMAND");
+      LOG_TRACE("SYNC_COMMAND");
       SendReadyForQuery(txn_state_);
       SetFlushFlag(true);
     } break;
     case NetworkMessageType::CLOSE_COMMAND: {
-      LOG_DEBUG("CLOSE_COMMAND");
+      LOG_TRACE("CLOSE_COMMAND");
       ExecCloseMessage(pkt);
     } break;
     case NetworkMessageType::TERMINATE_COMMAND: {
-      LOG_DEBUG("TERMINATE_COMMAND");
+      LOG_TRACE("TERMINATE_COMMAND");
       SetFlushFlag(true);
       return ProcessResult::TERMINATE;
     }

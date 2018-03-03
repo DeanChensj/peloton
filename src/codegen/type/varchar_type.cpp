@@ -13,10 +13,10 @@
 #include "codegen/type/varchar_type.h"
 
 #include "codegen/lang/if.h"
+#include "codegen/proxy/date_functions_proxy.h"
 #include "codegen/proxy/string_functions_proxy.h"
 #include "codegen/proxy/timestamp_functions_proxy.h"
 #include "codegen/proxy/values_runtime_proxy.h"
-#include "codegen/proxy/date_functions_proxy.h"
 #include "codegen/type/boolean_type.h"
 #include "codegen/type/decimal_type.h"
 #include "codegen/type/integer_type.h"
@@ -123,6 +123,48 @@ struct CompareVarchar : public TypeSystem::ExpensiveComparisonHandleNull {
 /// Unary operators
 ///
 ////////////////////////////////////////////////////////////////////////////////
+
+// UPPER
+struct Upper : public TypeSystem::UnaryOperatorHandleNull {
+  bool SupportsType(const Type &type) const override {
+    return type.GetSqlType() == Varchar::Instance();
+  }
+
+  Type ResultType(UNUSED_ATTRIBUTE const Type &val_type) const override {
+    return Varchar::Instance();
+  }
+
+  Value Impl(CodeGen &codegen, const Value &val,
+             const TypeSystem::InvocationContext &ctx) const override {
+    llvm::Value *executor_ctx = ctx.executor_context;
+    llvm::Value *ret =
+        codegen.Call(StringFunctionsProxy::Upper,
+                     {executor_ctx, val.GetValue(), val.GetLength()});
+
+    return Value(Varchar::Instance(), ret, val.GetLength());
+  }
+};
+
+// Lower
+struct Lower : public TypeSystem::UnaryOperatorHandleNull {
+  bool SupportsType(const Type &type) const override {
+    return type.GetSqlType() == Varchar::Instance();
+  }
+
+  Type ResultType(UNUSED_ATTRIBUTE const Type &val_type) const override {
+    return Varchar::Instance();
+  }
+
+  Value Impl(CodeGen &codegen, const Value &val,
+             const TypeSystem::InvocationContext &ctx) const override {
+    llvm::Value *executor_ctx = ctx.executor_context;
+    llvm::Value *ret =
+        codegen.Call(StringFunctionsProxy::Lower,
+                     {executor_ctx, val.GetValue(), val.GetLength()});
+
+    return Value(Varchar::Instance(), ret, val.GetLength());
+  }
+};
 
 // ASCII
 struct Ascii : public TypeSystem::UnaryOperatorHandleNull {
@@ -576,12 +618,14 @@ Length kLength;
 Upper kUpper;
 Lower kLower;
 Trim kTrim;
+Lower kLower;
+Upper kUpper;
 std::vector<TypeSystem::UnaryOpInfo> kUnaryOperatorTable = {
     {OperatorId::Ascii, kAscii},
     {OperatorId::Length, kLength},
-    {OperatorId::Upper, kUpper},
+    {OperatorId::Trim, kTrim},
     {OperatorId::Lower, kLower},
-    {OperatorId::Trim, kTrim}};
+    {OperatorId::Upper, kUpper}};
 
 // Binary operations
 Like kLike;
@@ -592,14 +636,16 @@ LTrim kLTrim;
 RTrim kRTrim;
 Concat kConcat;
 Repeat kRepeat;
+Concat kConcat;
 std::vector<TypeSystem::BinaryOpInfo> kBinaryOperatorTable = {
     {OperatorId::Like, kLike},
     {OperatorId::DateTrunc, kDateTrunc},
+    {OperatorId::DatePart, kDatePart},
     {OperatorId::BTrim, kBTrim},
     {OperatorId::LTrim, kLTrim},
     {OperatorId::RTrim, kRTrim},
-    {OperatorId::Concat, kConcat},
-    {OperatorId::Repeat, kRepeat}};
+    {OperatorId::Repeat, kRepeat},
+    {OperatorId::Concat, kConcat}};
 
 // Nary operations
 Substr kSubstr;

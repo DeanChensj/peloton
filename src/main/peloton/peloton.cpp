@@ -13,16 +13,16 @@
 #include <iostream>
 
 #include <gflags/gflags.h>
-
 #include "common/init.h"
 #include "common/logger.h"
-#include "network/network_manager.h"
+#include "network/peloton_server.h"
 #include "settings/settings_manager.h"
 
 // For GFlag's built-in help message flag
 DECLARE_bool(help);
 
 int main(int argc, char *argv[]) {
+
   // Parse the command line flags
   ::google::ParseCommandLineNonHelpFlags(&argc, &argv, true);
 
@@ -43,14 +43,12 @@ int main(int argc, char *argv[]) {
     // Setup
     peloton::PelotonInit::Initialize();
 
-    // Create NetworkManager object
-    peloton::network::NetworkManager network_manager;
+    peloton::network::PelotonServer peloton_server;
 
-    // Start NetworkManager
-    peloton::network::NetworkManager::LoadSSLFileSettings();
-    peloton::network::NetworkManager::SSLInit();
+    peloton::network::PelotonServer::LoadSSLFileSettings();
+    peloton::network::PelotonServer::SSLInit();
 
-    network_manager.StartServer();
+    peloton_server.SetupServer().ServerLoop();
   } catch (peloton::ConnectionException &exception) {
     // Nothing to do here!
   }

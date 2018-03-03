@@ -13,6 +13,7 @@
 #pragma once
 
 #include <cstdint>
+#include "type/value.h"
 
 namespace peloton {
 
@@ -75,18 +76,21 @@ class StringFunctions {
   static uint32_t Length(executor::ExecutorContext &ctx, const char *str,
                          uint32_t length);
 
-  // Return the upper version of the given string
+  // Transcend all characteres in the string to upper case
+  static type::Value __Upper(const std::vector<type::Value> &args);
   static char *Upper(executor::ExecutorContext &ctx, const char *str,
-                     uint32_t length);
+                     uint32_t str_len);
 
-  // Return the lower version of the given string
+  // Translate all characteres in the string to lower case
+  static type::Value __Lower(const std::vector<type::Value> &args);
   static char *Lower(executor::ExecutorContext &ctx, const char *str,
-                     uint32_t length);
+                     uint32_t str_len);
 
-  // Concatenate an array of strings to one string
+  // Contact strings together in the order they are trancended in
+  static type::Value __Concat(const std::vector<type::Value> &args);
   static StrWithLen Concat(executor::ExecutorContext &ctx,
-                           const char **concat_strs, const uint32_t *str_length,
-                           uint32_t length);
+                           const char **concat_strs, const uint32_t *attr_lens,
+                           uint32_t attr_len);
 };
 
 }  // namespace function
