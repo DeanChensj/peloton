@@ -36,7 +36,7 @@ namespace index {
  * @see Index
  */
 template <typename KeyType, typename ValueType, typename KeyComparator,
-          typename KeyEqualityChecker, typename ValueEqualityChecker>
+    typename KeyEqualityChecker, typename ValueEqualityChecker>
 class SkipListIndex : public Index {
   friend class IndexFactory;
 

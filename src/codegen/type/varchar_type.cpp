@@ -206,6 +206,48 @@ struct Length : public TypeSystem::UnaryOperatorHandleNull {
   }
 };
 
+// Upper
+struct Upper : public TypeSystem::UnaryOperatorHandleNull {
+  bool SupportsType(const Type &type) const override {
+    return type.GetSqlType() == Varchar::Instance();
+  }
+
+  Type ResultType(UNUSED_ATTRIBUTE const Type &val_type) const override {
+    return Varchar::Instance();
+  }
+
+  Value Impl(CodeGen &codegen, const Value &val,
+             const TypeSystem::InvocationContext &ctx) const override {
+    llvm::Value *executor_ctx = ctx.executor_context;
+    llvm::Value *ret =
+        codegen.Call(StringFunctionsProxy::Upper,
+                     {executor_ctx, val.GetValue(), val.GetLength()});
+
+    return Value{Varchar::Instance(), ret, val.GetLength()};
+  }
+};
+
+// Lower
+struct Lower : public TypeSystem::UnaryOperatorHandleNull {
+  bool SupportsType(const Type &type) const override {
+    return type.GetSqlType() == Varchar::Instance();
+  }
+
+  Type ResultType(UNUSED_ATTRIBUTE const Type &val_type) const override {
+    return Varchar::Instance();
+  }
+
+  Value Impl(CodeGen &codegen, const Value &val,
+             const TypeSystem::InvocationContext &ctx) const override {
+    llvm::Value *executor_ctx = ctx.executor_context;
+    llvm::Value *ret =
+        codegen.Call(StringFunctionsProxy::Lower,
+                     {executor_ctx, val.GetValue(), val.GetLength()});
+
+    return Value{Varchar::Instance(), ret, val.GetLength()};
+  }
+};
+
 // Trim
 struct Trim : public TypeSystem::UnaryOperatorHandleNull {
   bool SupportsType(const Type &type) const override {
@@ -573,6 +615,8 @@ std::vector<TypeSystem::ComparisonInfo> kComparisonTable = {{kCompareVarchar}};
 // Unary operators
 Ascii kAscii;
 Length kLength;
+Upper kUpper;
+Lower kLower;
 Trim kTrim;
 Lower kLower;
 Upper kUpper;
@@ -590,6 +634,7 @@ DatePart kDatePart;
 BTrim kBTrim;
 LTrim kLTrim;
 RTrim kRTrim;
+Concat kConcat;
 Repeat kRepeat;
 Concat kConcat;
 std::vector<TypeSystem::BinaryOpInfo> kBinaryOperatorTable = {

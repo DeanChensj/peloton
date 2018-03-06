@@ -75,7 +75,6 @@ bool SKIPLIST_INDEX_TYPE::DeleteEntry(const storage::Tuple *key,
   return ret;
 }
 
-SKIPLIST_TEMPLATE_ARGUMENTS
 bool SKIPLIST_INDEX_TYPE::CondInsertEntry(
     const storage::Tuple *key, ItemPointer *value,
     std::function<bool(const void *)> predicate) {

@@ -45,7 +45,7 @@ namespace index {
   template <typename KeyType, typename ValueType, typename KeyComparator, \
             typename KeyEqualityChecker, typename ValueEqualityChecker>
 template <typename KeyType, typename ValueType, typename KeyComparator,
-          typename KeyEqualityChecker, typename ValueEqualityChecker>
+    typename KeyEqualityChecker, typename ValueEqualityChecker>
 class SkipList {
  public:
   class NodeManager;
@@ -272,6 +272,10 @@ class SkipList {
       UNUSED_ATTRIBUTE SkipListBaseNode *target_node,
       UNUSED_ATTRIBUTE OperationContext &ctx) {
     return std::pair<SkipListBaseNode *, bool>{};
+  std::tuple<SkipListBaseNode *, bool> TryFlag(SkipListBaseNode *prev_node,
+                                               SkipListBaseNode *target_node,
+                                               OperationContext &ctx) {
+    return std::tuple<SkipListBaseNode *, bool>{};
   }
 
  public:
